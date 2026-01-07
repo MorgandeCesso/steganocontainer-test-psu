@@ -1,0 +1,28 @@
+@startuml schema_common.puml
+title Stego Container Flow
+left to right direction
+
+skinparam shadowing false
+skinparam componentStyle rectangle
+
+actor "User / Role" as A_USER
+
+component "Key Material\n(password)" as C_KEY
+component "KDF (scrypt)\nkey derivation" as C_KDF
+component "AES-GCM\nencrypt/decrypt" as C_AES
+component "CryptoPacket\n(MARKER|SALT|NONCE|LEN|CT)" as C_PKT
+component "LSB Embedder\n(bits into RGB)" as C_LSB
+component "Stego PNG\n(image with hidden bits)" as C_PNG
+component "DOCX Container\n(OOXML, ZIP)\nword/media/image1.png" as C_DOCX
+component "Transport / SED\n(network, document flow)" as C_SED
+
+A_USER --> C_KEY
+C_KEY  --> C_KDF : derive key
+C_KDF  --> C_AES : key
+C_AES  --> C_PKT : ciphertext
+C_PKT  --> C_LSB : payload
+C_LSB  --> C_PNG : stego image
+C_PNG  --> C_DOCX : embed image
+C_DOCX --> C_SED : send/store
+
+@enduml

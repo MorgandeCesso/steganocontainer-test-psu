@@ -1,0 +1,27 @@
+@startuml schema_matryoshka.puml
+title Steganocontainer UML Diagram
+left to right direction
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+component "DOCX Container\n(Office Open XML)\nZIP archive" as C_DOCX
+component "StegoImage.png\n(PNG, RGB)\nword/media/" as C_PNG
+component "LSB Layer\n(1 bit per R,G,B channel)" as C_LSB
+component "Payload\n(binary format)" as C_PAY
+component "CryptoPacket\nAES-GCM + scrypt" as C_CR
+
+C_DOCX *-- C_PNG : contains
+C_PNG  *-- C_LSB : contains
+C_LSB  *-- C_PAY : embeds
+C_PAY  *-- C_CR  : encapsulates
+
+note bottom of C_CR
+MARKER (8B)
+SALT  (16B)
+NONCE (12B)
+LEN   (4B)
+CIPHERTEXT (N)
+end note
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml schema_matryoshka_vertical.puml
+title Steganocontainer UML Diagram
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam wrapWidth 200
+skinparam maxMessageSize 80
+
+package "DOCX Document (Office Open XML)" <<container>> {
+  component "DocxContainer\n(.docx = ZIP archive)" as DOCX
+
+  package "word/media" <<ooxml>> {
+    component "StegoImage.png\n(PNG, RGB)" as PNG <<media>>
+  }
+}
+
+component "LSB Layer\n(1 bit per R,G,B channel)" as LSB <<stego>>
+component "Payload (binary blob)" as PAY <<format>>
+component "CryptoPacket\nAES-GCM + scrypt" as CR <<crypto>>
+
+' --- Containment / composition (matryoshka) ---
+DOCX *-- PNG : <<contains>>\nOOXML media resource
+PNG  *-- LSB : <<contains>>\nbit-channel inside pixels
+LSB  *-- PAY : <<embeds>>\npayload bits across pixels
+PAY  *-- CR  : <<encapsulates>>\nstructured fields
+
+note right of CR
+Fields:
+- MARKER (8B)
+- SALT  (16B)
+- NONCE (12B)
+- LEN   (4B)
+- CIPHERTEXT (N)
+end note
+
+@enduml
