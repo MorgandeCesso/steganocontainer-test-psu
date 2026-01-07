@@ -62,7 +62,6 @@ class CryptoPacket:
 
 
 def derive_key(password: str, salt: bytes, length: int = 32) -> bytes:
-    # Параметры scrypt подобраны «разумно для прототипа», при необходимости их можно усилить
     kdf = Scrypt(
         salt=salt,
         length=length,
@@ -78,8 +77,6 @@ def encrypt(plaintext: bytes, password: str) -> CryptoPacket:
     nonce = os.urandom(12)
     key = derive_key(password, salt)
     aesgcm = AESGCM(key)
-    # associated_data можно использовать для дополнительной привязки (например, к ID документа),
-    # но в прототипе оставляем None
     ciphertext = aesgcm.encrypt(nonce, plaintext, None)
     return CryptoPacket(salt=salt, nonce=nonce, ciphertext=ciphertext)
 
@@ -194,7 +191,6 @@ def extract_first_png_from_docx(docx_path: str) -> bytes:
         media_files = [n for n in zf.namelist() if n.startswith("word/media/") and n.lower().endswith(".png")]
         if not media_files:
             raise ValueError("No PNG images found in DOCX (word/media/*.png)")
-        # pick the first deterministically
         media_files.sort()
         return zf.read(media_files[0])
 
