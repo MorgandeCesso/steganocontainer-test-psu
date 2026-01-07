@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-DOCX stego prototype:
-- Encrypt payload with AES-GCM (password -> key via scrypt)
-- Embed ciphertext into a PNG using LSB (RGB channels)
-- Put that PNG into a DOCX as an embedded image (word/media/*)
+Прототип стеганографии для DOCX:
+- Шифрует полезную нагрузку (payload) с помощью AES‑GCM
+  (пароль преобразуется в ключ через scrypt);
+- Встраивает шифртекст в PNG‑картинку через LSB по RGB‑каналам;
+- Помещает эту PNG‑картинку в DOCX как встроенное изображение (word/media/*).
 
-Commands:
-  embed   -> creates output.docx containing stego image
-  extract -> reads stego image from docx and recovers plaintext
+Команды CLI:
+- embed   — создать DOCX с изображением-стегаконтейнером;
+- extract — достать скрытые данные из DOCX и расшифровать их.
 
-Notes:
-- Uses PNG (lossless). Do NOT use JPG for LSB.
-- This is a prototype for research/education, not a hardened stego system.
+Важно:
+- Используется только PNG. JPEG для LSB категорически не подходит;
 """
 
 import argparse
@@ -32,8 +32,8 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
-MAGIC = b"STEGDOC1"  # 8 bytes
-# Binary header (fixed-size):
+MAGIC = b"STEGDOC1"  # 8 байт «магической» сигнатуры
+# Бинарный заголовок фиксированной длины:
 # MAGIC(8) | SALT(16) | NONCE(12) | CT_LEN(4, uint32 LE) | CT(bytes)
 HDR_FMT = "<8s16s12sI"
 HDR_SIZE = struct.calcsize(HDR_FMT)
@@ -62,7 +62,7 @@ class CryptoPacket:
 
 
 def derive_key(password: str, salt: bytes, length: int = 32) -> bytes:
-    # scrypt parameters chosen for "prototype reasonable", tune as needed
+    # Параметры scrypt подобраны «разумно для прототипа», при необходимости их можно усилить
     kdf = Scrypt(
         salt=salt,
         length=length,
@@ -78,7 +78,8 @@ def encrypt(plaintext: bytes, password: str) -> CryptoPacket:
     nonce = os.urandom(12)
     key = derive_key(password, salt)
     aesgcm = AESGCM(key)
-    # associated_data can be added (e.g., doc id), keep None for prototype
+    # associated_data можно использовать для дополнительной привязки (например, к ID документа),
+    # но в прототипе оставляем None
     ciphertext = aesgcm.encrypt(nonce, plaintext, None)
     return CryptoPacket(salt=salt, nonce=nonce, ciphertext=ciphertext)
 
@@ -107,15 +108,15 @@ def bits_to_bytes(bits):
             cur = 0
             n = 0
     if n != 0:
-        # ignore trailing partial bits
+        # отбрасываем хвост неполных байт
         pass
     return bytes(out)
 
 
 def lsb_capacity_bytes(img: Image.Image) -> int:
     """
-    Capacity in bytes when embedding 1 bit per color channel in RGB.
-    We'll use RGB only (3 channels), 1 LSB each -> 3 bits per pixel.
+    Возвращает вместимость в байтах при встраивании 1 бита на цветовой канал RGB.
+    Используем только RGB (3 канала), по 1 младшему биту => 3 бита на пиксель.
     """
     w, h = img.size
     total_bits = w * h * 3
@@ -125,13 +126,13 @@ def lsb_capacity_bytes(img: Image.Image) -> int:
 def embed_lsb_png(cover_png_path: str, payload: bytes, out_png_path: str) -> None:
     img = Image.open(cover_png_path)
 
-    # Force RGB (ignore alpha for simplicity)
+    # Принудительно приводим к RGB (альфа‑канал игнорируем для простоты)
     img = img.convert("RGB")
     w, h = img.size
     pixels = list(img.getdata())
 
     cap = lsb_capacity_bytes(img)
-    # We'll embed payload length prefix (4 bytes) + payload
+    # Встраиваем длину полезной нагрузки (4 байта, uint32 LE) + сами данные
     blob = struct.pack("<I", len(payload)) + payload
 
     if len(blob) > cap:
@@ -147,7 +148,7 @@ def embed_lsb_png(cover_png_path: str, payload: bytes, out_png_path: str) -> Non
             b = (b & ~1) | next(bit_iter)
             new_pixels.append((r, g, b))
     except StopIteration:
-        # no more bits; keep remaining pixels unchanged
+        # биты закончились — оставшиеся пиксели не трогаем
         new_pixels.extend(pixels[len(new_pixels):])
 
     stego = Image.new("RGB", (w, h))
@@ -180,14 +181,14 @@ def create_docx_with_image(image_path: str, out_docx_path: str, title: Optional[
     doc = Document()
     if title:
         doc.add_heading(title, level=1)
-    doc.add_paragraph("Изображение ниже содержит стегоконтейнер с данными. Для извлечения данных необходимо использовать специальное приложение.")
+    doc.add_paragraph("Изображение ниже содержит стегоконтейнер с данными. Для извлечения данных необходимо использовать специальную команду")
     doc.add_picture(image_path)  # default size
     doc.save(out_docx_path)
 
 
 def extract_first_png_from_docx(docx_path: str) -> bytes:
     """
-    Returns bytes of the first PNG found in word/media/.
+    Возвращает байты первого PNG‑файла, найденного в word/media/ внутри DOCX.
     """
     with zipfile.ZipFile(docx_path, "r") as zf:
         media_files = [n for n in zf.namelist() if n.startswith("word/media/") and n.lower().endswith(".png")]
@@ -233,7 +234,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
             f.write(plaintext)
         print(f"[OK] Extracted plaintext to: {args.outfile}")
     else:
-        # Try UTF-8; fallback to repr
+        # Пытаемся вывести как UTF‑8; если не текст — печатаем «как есть»
         try:
             print(plaintext.decode("utf-8"))
         except UnicodeDecodeError:
