@@ -11,3 +11,6 @@ __pycache__/
 *.pywz
 *.pyzw
 out/
+*.docx
+stego.png
+_extracted.png
